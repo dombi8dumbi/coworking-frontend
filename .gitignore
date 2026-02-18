@@ -38,4 +38,4 @@ __screenshots__/
 # .gitignore
 node_modules
 dist
-
+.env
