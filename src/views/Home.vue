@@ -1,8 +1,8 @@
 <template>
-    <div class="home">
-     <center><h1><u>Salles disponibles</u></h1></center>
+  <div class="home">
+    <center><h1><u>Salles disponibles</u></h1></center>
 
-  <div class="rooms-slider">
+    <div class="rooms-slider">
       <div class="room-card" v-for="salle in salles" :key="salle.id">
         <h2>{{ salle.nom }}</h2>
 
@@ -19,68 +19,41 @@
         </button>
       </div>
     </div>
-     <div style="text-align:right; margin-bottom:20px;">
-    <button @click="$router.push('/dashboard')" 
-            style="background:#42b983; color:white; border:none; border-radius:5px;">
-      Mon Tableau de Bord
-    </button>
-  </div>
+
+    <div style="text-align:right; margin-bottom:20px;">
+      <button
+        @click="$router.push('/dashboard')"
+        style="background:#42b983; color:white; border:none; border-radius:5px;"
+      >
+        Mon Tableau de Bord
+      </button>
+    </div>
   </div>
 </template>
 
 <script>
+import { api } from "../services/api";
+
 export default {
   name: "Home",
   data() {
     return {
       salles: [
-        {
-          id: 1,
-          nom: "Salle Alpha",
-          capacite: 10,
-          equipements: ["Projecteur", "Wifi", "Tableau"]
-        },
-        {
-          id: 2,
-          nom: "Salle Beta",
-          capacite: 6,
-          equipements: ["Wifi"]
-        },
-        {
-          id: 3,
-          nom: "Salle Gamma",
-          capacite: 20,
-          equipements: ["Projecteur", "Climatisation", "Wifi"]
-        },
-        {
-            id: 4,
-            nom: "Salle Delta",
-            capacite: 15,
-            equipements: ["Projecteur", "Wifi", "Téléphone"]
-        },
-        {
-            id: 5,
-            nom: "Salle Epsilon",
-            capacite: 8,
-            equipements: ["Tableau", "Wifi"]
-        },
-        {
-            id: 6,
-            nom: "Salle Zeta",
-            capacite: 12,
-            equipements: ["Projecteur", "Climatisation", "Tableau"]
-        }
+        { id: 1, nom: "Salle Alpha", capacite: 10, equipements: ["Projecteur", "Wifi", "Tableau"] },
+        { id: 2, nom: "Salle Beta", capacite: 6, equipements: ["Wifi"] },
+        { id: 3, nom: "Salle Gamma", capacite: 20, equipements: ["Projecteur", "Climatisation", "Wifi"] },
+        { id: 4, nom: "Salle Delta", capacite: 15, equipements: ["Projecteur", "Wifi", "Téléphone"] },
+        { id: 5, nom: "Salle Epsilon", capacite: 8, equipements: ["Tableau", "Wifi"] },
+        { id: 6, nom: "Salle Zeta", capacite: 12, equipements: ["Projecteur", "Climatisation", "Tableau"] }
       ]
     };
   },
+
   methods: {
     goToReservation(salle) {
       this.$router.push({
         path: "/reservation",
-        query: {
-          idSalle: salle.id,
-          nomSalle: salle.nom
-        }
+        query: { idSalle: salle.id, nomSalle: salle.nom }
       });
     }
   }
