@@ -1,146 +1,96 @@
 <template>
   <div class="page">
-    <!-- Top bar -->
     <header class="topbar">
-      <div class="brand">
-        <div class="dot"></div>
-        <div>
-          <h1>Tableau de bord</h1>
-          <p>Suivi des réservations & notifications</p>
-        </div>
-      </div>
+      <h1 class="title">Tableau de bord</h1>
 
-      <div class="actions">
-        <button class="btn ghost" @click="goHome">Accueil</button>
-        <button class="btn" @click="refreshAll" :disabled="loading">
-          {{ loading ? "Actualisation..." : "Actualiser" }}
+      <div class="tabs">
+        <button
+          :class="['tab', activeSection === 'reservations' && 'active']"
+          @click="showSection('reservations')"
+        >
+          Mes Réservations
         </button>
+
+        <button
+          :class="['tab', activeSection === 'notifications' && 'active']"
+          @click="showSection('notifications')"
+        >
+          Notifications
+          <span v-if="unreadCount" class="badge">{{ unreadCount }}</span>
+        </button>
+
+        <button class="tab ghost" @click="$router.push('/')">Accueil</button>
       </div>
     </header>
 
-    <!-- Tabs -->
-    <nav class="tabs">
-      <button
-        class="tab"
-        :class="{ active: activeSection === 'reservations' }"
-        @click="showSection('reservations')"
-      >
-        Mes Réservations
-        <span class="badge">{{ reservations.length }}</span>
-      </button>
-
-      <button
-        class="tab"
-        :class="{ active: activeSection === 'notifications' }"
-        @click="showSection('notifications')"
-      >
-        Notifications
-        <span class="badge">{{ notifications.length }}</span>
-      </button>
-    </nav>
-
-    <!-- Content -->
     <main class="content">
-      <!-- Global status -->
-      <div v-if="error" class="alert error">
-        {{ error }}
-      </div>
-      <div v-if="message" class="alert success">
-        {{ message }}
-      </div>
-
       <!-- RESERVATIONS -->
       <section v-if="activeSection === 'reservations'" class="card">
-        <div class="card-header">
+        <div class="cardHeader">
           <h2>Mes Réservations</h2>
-          <p>Liste synchronisée avec l’API</p>
+          <div class="actions">
+            <button class="small" @click="fetchReservations" :disabled="loading">
+              {{ loading ? "Chargement..." : "Rafraîchir" }}
+            </button>
+          </div>
         </div>
 
-        <div v-if="loadingReservations" class="muted">Chargement...</div>
+        <p v-if="error" class="error">{{ error }}</p>
 
-        <div v-else>
-          <div v-if="reservations.length === 0" class="empty">
-            Aucune réservation pour le moment.
-          </div>
+        <div v-if="!loading && reservations.length === 0" class="empty">
+          Aucune réservation pour le moment.
+        </div>
 
-          <table v-else class="table">
+        <div v-else class="tableWrap">
+          <table class="table">
             <thead>
               <tr>
                 <th>#</th>
                 <th>Salle</th>
                 <th>Date</th>
                 <th>Description</th>
-                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="r in reservations" :key="r.id || r._id">
-                <td class="mono">{{ r.id || r._id || "-" }}</td>
-                <td>{{ r.nom || r.salle || "—" }}</td>
-                <td class="mono">{{ formatDate(r.date) }}</td>
-                <td class="muted">{{ r.description || "—" }}</td>
-                <td>
-                  <button class="btn danger" @click="deleteReservation(r.id || r._id)">
-                    Supprimer
-                  </button>
-                </td>
+                <td>{{ r.id || r._id || "-" }}</td>
+                <td>{{ r.nom || r.salle || "-" }}</td>
+                <td>{{ formatDate(r.date) }}</td>
+                <td class="muted">{{ r.description || "-" }}</td>
               </tr>
             </tbody>
           </table>
-
-          <div class="hint">
-            Astuce : si ton backend renvoie d’autres champs, on adapte juste les colonnes.
-          </div>
         </div>
+
+        <p class="hint">
+          Mise à jour auto toutes les {{ pollingIntervalMs / 1000 }}s.
+        </p>
       </section>
 
-      <!-- NOTIFICATIONS -->
+      <!-- NOTIFS -->
       <section v-if="activeSection === 'notifications'" class="card">
-        <div class="card-header">
+        <div class="cardHeader">
           <h2>Notifications</h2>
-          <p>Pour “temps réel”, on fait un rafraîchissement auto (polling)</p>
-        </div>
-
-        <div class="row">
-          <label class="switch">
-            <input type="checkbox" v-model="pollingEnabled" @change="togglePolling" />
-            <span>Activer le rafraîchissement auto</span>
-          </label>
-
-          <div class="poll">
-            <span class="muted">Toutes les</span>
-            <select v-model.number="pollingIntervalMs" @change="restartPolling">
-              <option :value="5000">5s</option>
-              <option :value="10000">10s</option>
-              <option :value="20000">20s</option>
-              <option :value="30000">30s</option>
-            </select>
+          <div class="actions">
+            <button class="small" @click="markAllRead" :disabled="notifications.length === 0">
+              Tout marquer comme lu
+            </button>
+            <button class="small danger" @click="clearNotifications" :disabled="notifications.length === 0">
+              Vider
+            </button>
           </div>
         </div>
 
-        <div v-if="loadingNotifications" class="muted">Chargement...</div>
+        <div v-if="notifications.length === 0" class="empty">
+          Pas de notifications.
+        </div>
 
-        <ul v-else class="list">
-          <li v-if="notifications.length === 0" class="empty">
-            Aucune notification.
-          </li>
-
-          <li v-for="(n, idx) in notifications" :key="n.id || idx" class="list-item">
-            <div class="bullet"></div>
-            <div class="list-body">
-              <div class="list-title">
-                {{ n.message || n.titre || "Notification" }}
-              </div>
-              <div class="list-meta mono">
-                {{ n.date ? formatDate(n.date) : "" }}
-              </div>
-            </div>
+        <ul v-else class="notifList">
+          <li v-for="n in notifications" :key="n.id" :class="['notif', !n.read && 'unread']">
+            <div class="notifMsg">{{ n.message }}</div>
+            <div class="notifMeta">{{ n.time }}</div>
           </li>
         </ul>
-
-        <div class="hint">
-          Si tu veux du VRAI temps réel (push instantané), ton backend doit exposer WebSocket/SSE.
-        </div>
       </section>
     </main>
   </div>
@@ -155,165 +105,104 @@ export default {
     return {
       activeSection: "reservations",
 
-      // data
       reservations: [],
-      notifications: [],
-
-      // ui
       loading: false,
-      loadingReservations: false,
-      loadingNotifications: false,
       error: "",
-      message: "",
 
-      // polling
-      pollingEnabled: true,
-      pollingIntervalMs: 5000,
+      notifications: [],
       pollingTimer: null,
-      lastReservationCount: 0,
+      pollingIntervalMs: 5000, // ✅ ICI (5 secondes)
+
+      lastCount: 0,
     };
   },
 
-  async mounted() {
-    await this.refreshAll();
-    this.lastReservationCount = this.reservations.length;
+  computed: {
+    unreadCount() {
+      return this.notifications.filter((n) => !n.read).length;
+    },
+  },
 
-    if (this.pollingEnabled) {
-      this.startPolling();
-    }
+  async mounted() {
+    await this.fetchReservations();
+
+    // ✅ Polling toutes les 5s
+    this.pollingTimer = setInterval(() => {
+      this.fetchReservations(true); // true = silencieux
+    }, this.pollingIntervalMs);
   },
 
   beforeUnmount() {
-    this.stopPolling();
+    if (this.pollingTimer) clearInterval(this.pollingTimer);
   },
 
   methods: {
     showSection(section) {
       this.activeSection = section;
-      this.error = "";
-      this.message = "";
     },
 
-    goHome() {
-      this.$router.push({ path: "/" });
-    },
-
-    formatDate(dateStr) {
-      if (!dateStr) return "—";
-      // si dateStr est déjà formatée, on laisse
-      // sinon on tente une conversion simple
-      const d = new Date(dateStr);
-      if (Number.isNaN(d.getTime())) return dateStr;
-      return d.toISOString().slice(0, 10);
-    },
-
-    async refreshAll() {
-      this.loading = true;
-      this.error = "";
-      this.message = "";
-
+    formatDate(d) {
+      if (!d) return "-";
+      // si backend renvoie ISO, ça marche
       try {
-        await Promise.all([this.fetchReservations(), this.fetchNotifications()]);
-      } finally {
-        this.loading = false;
+        const dt = new Date(d);
+        if (Number.isNaN(dt.getTime())) return d;
+        return dt.toLocaleDateString("fr-FR");
+      } catch {
+        return d;
       }
     },
 
-    async fetchReservations() {
-      this.loadingReservations = true;
-      this.error = "";
+    pushNotif(message) {
+      this.notifications.unshift({
+        id: crypto?.randomUUID?.() || String(Date.now()),
+        message,
+        time: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+        read: false,
+      });
+    },
+
+    markAllRead() {
+      this.notifications = this.notifications.map((n) => ({ ...n, read: true }));
+    },
+
+    clearNotifications() {
+      this.notifications = [];
+    },
+
+    async fetchReservations(silent = false) {
+      if (!silent) {
+        this.loading = true;
+        this.error = "";
+      }
 
       try {
-        // ✅ À ADAPTER si ton endpoint est différent
-        // Exemples possibles:
-        // - /api/reservations
-        // - /api/reservations/user/:id
         const res = await api.get("/api/reservations");
 
-        // selon ton backend, ça peut être res.data ou res.data.data
         const list = Array.isArray(res.data) ? res.data : (res.data?.data || []);
         this.reservations = list;
 
-        // mini notification si le nombre augmente
-        if (this.lastReservationCount && list.length > this.lastReservationCount) {
-          this.notifications.unshift({
-            message: "Nouvelle réservation ajoutée ✅",
-            date: new Date().toISOString(),
-          });
+        // notif si nouvelle réservation apparait
+        if (this.lastCount && list.length > this.lastCount) {
+          const diff = list.length - this.lastCount;
+          this.pushNotif(`${diff} nouvelle(s) réservation(s) reçue(s).`);
         }
-        this.lastReservationCount = list.length;
+        this.lastCount = list.length;
       } catch (e) {
+        // Important: 401 possible si route protégée
+        const status = e?.response?.status;
+
+        if (status === 401) {
+          this.error = "401 Unauthorized — cette route semble protégée (token requis).";
+        } else {
+          this.error =
+            e?.response?.data?.message ||
+            `Erreur API (${status || "?"}) — vérifie la route /api/reservations, CORS, ou le backend.`;
+        }
         console.error(e);
-        this.error =
-          e?.response?.data?.message ||
-          "Erreur lors du chargement des réservations (vérifie l’endpoint /api/reservations).";
       } finally {
-        this.loadingReservations = false;
+        if (!silent) this.loading = false;
       }
-    },
-
-    async deleteReservation(id) {
-  if (!id) return;
-
-  const ok = confirm("Supprimer cette réservation ?");
-  if (!ok) return;
-
-  try {
-    await api.delete(`/api/reservations/${id}`);
-    this.message = "Réservation supprimée ✅";
-    await this.fetchReservations(); // refresh
-  } catch (e) {
-    console.error(e);
-    this.error =
-      e?.response?.data?.message ||
-      "Erreur lors de la suppression de la réservation.";
-  }
-},
-
-    async fetchNotifications() {
-      this.loadingNotifications = true;
-      this.error = "";
-
-      try {
-        // ✅ Si tu n'as PAS d’endpoint notifications, on peut en générer
-        // à partir des réservations, ou juste garder une liste locale.
-        // Si tu as un endpoint:
-        // const res = await api.get("/api/notifications");
-
-        // Pour l’instant: notifications locales (mais alimentées lors de nouvelles réservations)
-        // Tu peux remplacer cette partie quand tu auras /api/notifications.
-        this.notifications = this.notifications.slice(0, 20);
-      } catch (e) {
-        console.error(e);
-        this.error = "Erreur lors du chargement des notifications.";
-      } finally {
-        this.loadingNotifications = false;
-      }
-    },
-
-    // Polling (pseudo temps réel)
-    startPolling() {
-      this.stopPolling();
-      this.pollingTimer = setInterval(async () => {
-        // rafraîchit surtout les réservations (qui déclenchent notifs)
-        await this.fetchReservations();
-      }, this.pollingIntervalMs);
-    },
-
-    stopPolling() {
-      if (this.pollingTimer) {
-        clearInterval(this.pollingTimer);
-        this.pollingTimer = null;
-      }
-    },
-
-    togglePolling() {
-      if (this.pollingEnabled) this.startPolling();
-      else this.stopPolling();
-    },
-
-    restartPolling() {
-      if (this.pollingEnabled) this.startPolling();
     },
   },
 };
@@ -323,234 +212,190 @@ export default {
 .page {
   min-height: 100vh;
   background: #f6f7fb;
-  padding: 18px;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
 
 .topbar {
-  display: flex;
-  gap: 16px;
-  justify-content: space-between;
-  align-items: center;
+  position: sticky;
+  top: 0;
   background: white;
-  border: 1px solid #e6e7ee;
-  border-radius: 14px;
-  padding: 14px 16px;
-  box-shadow: 0 6px 22px rgba(15, 23, 42, 0.06);
-}
-
-.brand {
+  border-bottom: 1px solid #e9e9ef;
+  padding: 16px 18px;
   display: flex;
   gap: 12px;
   align-items: center;
-}
-.dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #42b983;
-}
-h1 {
-  margin: 0;
-  font-size: 18px;
-}
-.brand p {
-  margin: 0;
-  font-size: 12px;
-  color: #6b7280;
+  justify-content: space-between;
 }
 
-.actions {
-  display: flex;
-  gap: 10px;
-}
-.btn.danger {
-  background: #ef4444;
-}
-.btn.danger:hover {
-  background: #dc2626;
-}
-.btn {
-  padding: 10px 12px;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  font-weight: 700;
-  background: #42b983;
-  color: white;
-}
-.btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-.btn.ghost {
-  background: #eef2ff;
-  color: #111827;
+.title {
+  font-size: 22px;
+  margin: 0;
+  font-weight: 800;
 }
 
 .tabs {
-  margin-top: 14px;
   display: flex;
   gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .tab {
-  background: white;
-  border: 1px solid #e6e7ee;
-  border-radius: 12px;
+  border: 1px solid #e3e3ea;
+  background: #ffffff;
   padding: 10px 12px;
+  border-radius: 10px;
+  font-weight: 700;
   cursor: pointer;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
+
 .tab.active {
   border-color: #42b983;
-  box-shadow: 0 6px 18px rgba(66, 185, 131, 0.15);
+  box-shadow: 0 0 0 3px rgba(66, 185, 131, 0.12);
 }
+
+.tab.ghost {
+  background: #f2f3f7;
+}
+
 .badge {
-  font-size: 12px;
-  background: #111827;
-  color: white;
+  margin-left: 8px;
   padding: 2px 8px;
   border-radius: 999px;
+  font-size: 12px;
+  background: #42b983;
+  color: white;
 }
 
 .content {
-  margin-top: 14px;
-  display: grid;
-  gap: 12px;
+  max-width: 980px;
+  margin: 18px auto;
+  padding: 0 18px 28px;
 }
 
 .card {
   background: white;
-  border: 1px solid #e6e7ee;
+  border: 1px solid #e9e9ef;
   border-radius: 14px;
   padding: 16px;
-  box-shadow: 0 6px 22px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.04);
 }
 
-.card-header h2 {
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.cardHeader h2 {
   margin: 0;
-  font-size: 16px;
-}
-.card-header p {
-  margin: 6px 0 0;
-  font-size: 12px;
-  color: #6b7280;
+  font-size: 18px;
 }
 
-.alert {
-  border-radius: 12px;
-  padding: 10px 12px;
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.small {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #e3e3ea;
+  background: #f6f7fb;
+  cursor: pointer;
   font-weight: 700;
-  border: 1px solid transparent;
-}
-.alert.error {
-  background: #fff1f2;
-  border-color: #fecdd3;
-  color: #9f1239;
-}
-.alert.success {
-  background: #ecfdf5;
-  border-color: #bbf7d0;
-  color: #065f46;
 }
 
-.muted {
-  color: #6b7280;
+.small:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
-.mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 12px;
+
+.small.danger {
+  background: #fff1f1;
+  border-color: #ffd0d0;
+}
+
+.tableWrap {
+  overflow: auto;
+  border-radius: 12px;
+  border: 1px solid #f0f0f5;
 }
 
 .table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 12px;
 }
-.table th,
-.table td {
-  border-bottom: 1px solid #eef2f7;
-  padding: 10px 8px;
+
+.table th, .table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f0f0f5;
   text-align: left;
 }
+
 .table th {
-  font-size: 12px;
+  background: #fafafe;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.muted {
   color: #6b7280;
+}
+
+.error {
+  background: #fff1f1;
+  border: 1px solid #ffd0d0;
+  padding: 10px;
+  border-radius: 10px;
+  color: #9b1c1c;
+  font-weight: 700;
 }
 
 .empty {
-  margin-top: 12px;
   padding: 14px;
-  background: #f8fafc;
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed #e3e3ea;
   border-radius: 12px;
-  color: #475569;
-}
-
-.hint {
-  margin-top: 12px;
-  font-size: 12px;
+  background: #fafafe;
   color: #6b7280;
 }
 
-.row {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: space-between;
+.hint {
   margin-top: 10px;
-  flex-wrap: wrap;
-}
-.switch {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  font-weight: 700;
-}
-.poll {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-select {
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid #e6e7ee;
-  background: white;
+  color: #6b7280;
+  font-size: 13px;
 }
 
-.list {
+.notifList {
   list-style: none;
   padding: 0;
-  margin: 12px 0 0;
+  margin: 0;
   display: grid;
   gap: 10px;
 }
-.list-item {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  padding: 12px;
-  border: 1px solid #eef2f7;
+
+.notif {
+  border: 1px solid #e9e9ef;
   border-radius: 12px;
-  background: #fcfcff;
+  padding: 10px 12px;
+  background: #fafafe;
 }
-.bullet {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #42b983;
-  margin-top: 5px;
+
+.notif.unread {
+  border-color: #42b983;
+  box-shadow: 0 0 0 3px rgba(66, 185, 131, 0.10);
+  background: #f2fffa;
 }
-.list-title {
-  font-weight: 900;
+
+.notifMsg {
+  font-weight: 800;
 }
-.list-meta {
+
+.notifMeta {
   margin-top: 4px;
+  font-size: 12px;
   color: #6b7280;
 }
 </style>
