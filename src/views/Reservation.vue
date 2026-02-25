@@ -1,10 +1,10 @@
 <template>
   <div class="reservation">
     <h1>📅 Réserver une salle</h1>
-<p v-if="$route.query.nomSalle">
-  Salle choisie : <strong>{{ $route.query.nomSalle }}</strong>
-</p>
 
+    <p v-if="$route.query.nomSalle">
+      Salle choisie : <strong>{{ $route.query.nomSalle }}</strong>
+    </p>
 
     <form @submit.prevent="submitReservation">
       <!-- Salle -->
@@ -36,75 +36,118 @@
         <input type="time" v-model="reservation.heureFin" required />
       </div>
 
-      <button type="submit">Confirmer</button>
+      <!-- Description (optionnel mais utile) -->
+      <div class="form-group">
+        <label>Description (optionnel)</label>
+        <input
+          type="text"
+          v-model="reservation.description"
+          placeholder="Ex: Réunion d’équipe"
+        />
+      </div>
+
+      <button type="submit" :disabled="loading">
+        {{ loading ? "Envoi..." : "Confirmer" }}
+      </button>
     </form>
 
-    <!-- Résumé -->
-    <div v-if="confirmation" class="confirmation">
-       Réservation enregistrée !
-      <pre>{{ confirmation }}</pre>
+    <!-- Résultat -->
+    <div v-if="message" class="confirmation">
+      {{ message }}
+      <pre v-if="confirmation">{{ confirmation }}</pre>
     </div>
+
+    <!-- Erreur -->
+    <p v-if="error" style="color: red; font-weight: bold; margin-top: 12px">
+      {{ error }}
+    </p>
 
     <!-- Bouton retour -->
-    <div>
-      <button @click="goHome">Back to Home Page</button>
+    <div style="margin-top: 12px">
+      <button @click="goHome" type="button">Back to Home Page</button>
     </div>
-
   </div>
 </template>
 
 <script>
+import { createReservation } from "../services/reservations";
+
 export default {
   name: "Reservation",
   data() {
-  return {
-    salles: [
-      { id: 1, nom: "Salle Alpha", capacite: 10 },
-      { id: 2, nom: "Salle Beta", capacite: 6 },
-      { id: 3, nom: "Salle Gamma", capacite: 20 }
-    ],
-    reservation: {
-      idSalle: "",
-      date: "",
-      heureDebut: "",
-      heureFin: ""
-    },
-    confirmation: null
-  };
-},
-mounted() {
-  if (this.$route.query.idSalle) {
-    this.reservation.idSalle = Number(this.$route.query.idSalle);
-  }
-},
+    return {
+      loading: false,
+      message: "",
+      error: "",
+      confirmation: null,
+
+      salles: [
+        { id: 1, nom: "Salle Alpha", capacite: 10 },
+        { id: 2, nom: "Salle Beta", capacite: 6 },
+        { id: 3, nom: "Salle Gamma", capacite: 20 },
+      ],
+
+      reservation: {
+        idSalle: "",
+        date: "",
+        heureDebut: "",
+        heureFin: "",
+        description: "",
+      },
+    };
+  },
+
+  mounted() {
+    if (this.$route.query.idSalle) {
+      this.reservation.idSalle = Number(this.$route.query.idSalle);
+    }
+  },
 
   methods: {
     goHome() {
       this.$router.push({ path: "/" });
     },
-    submitReservation() {
-      // Vérification simple
+
+    async submitReservation() {
+      this.message = "";
+      this.error = "";
+      this.confirmation = null;
+
+      // Vérif heure
       if (this.reservation.heureDebut >= this.reservation.heureFin) {
-        alert("L'heure de fin doit être après l'heure de début.");
+        this.error = "L'heure de fin doit être après l'heure de début.";
         return;
       }
 
-      // Simulation d’envoi au backend
-      this.confirmation = {
-        ...this.reservation
+      // Trouver le nom de salle
+      const salle = this.salles.find((s) => s.id === this.reservation.idSalle);
+      const nomSalle = salle?.nom || this.$route.query.nomSalle || "Salle";
+
+      // ✅ Payload compatible avec ton Swagger
+      const payload = {
+        nom: nomSalle,
+        description:
+          this.reservation.description ||
+          `Réservation ${nomSalle} (${this.reservation.heureDebut} - ${this.reservation.heureFin})`,
+        date: this.reservation.date,
       };
 
-      alert("Réservation confirmée !");
-      
-      // Réinitialiser le formulaire
-      this.reservation = {
-        idSalle: "",
-        date: "",
-        heureDebut: "",
-        heureFin: ""
-      };
-    }
-  }
+      this.loading = true;
+
+      try {
+  await api.post("/api/reservations", payload);
+  this.$router.push("/dashboard");
+} catch (e) {
+  console.error(e);
+  this.error =
+    e?.response?.data?.message ||
+    "Erreur API ❌ (vérifie CORS / route / backend)";
+} finally {
+  this.loading = false;
+}
+
+    },
+  },
 };
 </script>
 
@@ -127,7 +170,8 @@ label {
   font-weight: bold;
 }
 
-input, select {
+input,
+select {
   width: 100%;
   padding: 8px;
   border-radius: 5px;
@@ -146,6 +190,11 @@ button {
 
 button:hover {
   background: #369870;
+}
+
+button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .confirmation {
