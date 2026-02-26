@@ -70,7 +70,7 @@
 </template>
 
 <script>
-import { createReservation } from "../services/reservations";
+import { createReservation } from "../services/reservation";
 
 export default {
   name: "Reservation",
@@ -113,17 +113,14 @@ export default {
       this.error = "";
       this.confirmation = null;
 
-      // Vérif heure
       if (this.reservation.heureDebut >= this.reservation.heureFin) {
         this.error = "L'heure de fin doit être après l'heure de début.";
         return;
       }
 
-      // Trouver le nom de salle
       const salle = this.salles.find((s) => s.id === this.reservation.idSalle);
       const nomSalle = salle?.nom || this.$route.query.nomSalle || "Salle";
 
-      // ✅ Payload compatible avec ton Swagger
       const payload = {
         nom: nomSalle,
         description:
@@ -135,17 +132,30 @@ export default {
       this.loading = true;
 
       try {
-  await api.post("/api/reservations", payload);
-  this.$router.push("/dashboard");
-} catch (e) {
-  console.error(e);
-  this.error =
-    e?.response?.data?.message ||
-    "Erreur API ❌ (vérifie CORS / route / backend)";
-} finally {
-  this.loading = false;
-}
+        const res = await createReservation(payload);
 
+        this.message = "Réservation enregistrée ! ✅";
+        this.confirmation = JSON.stringify(res.data ?? res, null, 2);
+
+        // reset
+        this.reservation = {
+          idSalle: "",
+          date: "",
+          heureDebut: "",
+          heureFin: "",
+          description: "",
+        };
+
+        // rediriger vers dashboard
+        this.$router.push("/dashboard");
+      } catch (e) {
+        console.error(e);
+        this.error =
+          e?.response?.data?.message ||
+          "Erreur API ❌ (vérifie CORS / route / backend)";
+      } finally {
+        this.loading = false;
+      }
     },
   },
 };
